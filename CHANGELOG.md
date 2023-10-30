@@ -1,5 +1,57 @@
 # slate-react
 
+## 0.91.11
+
+### Patch Changes
+
+- [#5362](https://github.com/ianstormtaylor/slate/pull/5362) [`43999356`](https://github.com/ianstormtaylor/slate/commit/439993569001f8c5dc9e68194c198d430a4ef4bc) Thanks [@jason0x43](https://github.com/jason0x43)! - Fix an issue where pastes in Safari wouldn't include application/x-slate-fragment data
+
+* [#5359](https://github.com/ianstormtaylor/slate/pull/5359) [`9825d29b`](https://github.com/ianstormtaylor/slate/commit/9825d29b87ffff96b4cdfd7339028cc1a92c6f68) Thanks [@jason0x43](https://github.com/jason0x43)! - Fix an issue on Android where content containing a newline wouldn't be pasted properly
+
+## 0.91.10
+
+### Patch Changes
+
+- [#5346](https://github.com/ianstormtaylor/slate/pull/5346) [`a5e833f6`](https://github.com/ianstormtaylor/slate/commit/a5e833f6550a823689e593317f4579127d8a7fd7) Thanks [@edhager](https://github.com/edhager)! - Fix a problem with Editable not calling the decorate function passed as a prop when it should.
+
+* [#5343](https://github.com/ianstormtaylor/slate/pull/5343) [`f7f02a8b`](https://github.com/ianstormtaylor/slate/commit/f7f02a8b23f16a3f3103302343e3326549917892) Thanks [@12joan](https://github.com/12joan)! - Fix error when triple-clicking a word preceding a `contenteditable="false"` DOM node in Chrome
+
+## 0.91.9
+
+### Patch Changes
+
+- [#5339](https://github.com/ianstormtaylor/slate/pull/5339) [`62f8ddd9`](https://github.com/ianstormtaylor/slate/commit/62f8ddd9713617bf474968a10b69c24b71074b41) Thanks [@12joan](https://github.com/12joan)! - Fixes #5335. To prevent performance issues, make sure to wrap custom `renderPlaceholder` values in `useCallback`.
+
+## 0.91.8
+
+### Patch Changes
+
+- [#5325](https://github.com/ianstormtaylor/slate/pull/5325) [`af3f828b`](https://github.com/ianstormtaylor/slate/commit/af3f828b1206409951708b823fb32965b67c798f) Thanks [@clauderic](https://github.com/clauderic)! - Fix edge-cases in the Android input manager when text leaf nodes are deleted, such as when deleting text leaf nodes adjacent to inline void nodes.
+
+* [#5327](https://github.com/ianstormtaylor/slate/pull/5327) [`4205e0f0`](https://github.com/ianstormtaylor/slate/commit/4205e0f002929f575f34ef8bb5d3bf9d2670d9d7) Thanks [@YasinChan](https://github.com/YasinChan)! - Fix the issue of composition API and beforeinput event triggering between Chrome versions 60-75 on the Android platform.
+
+## 0.91.7
+
+### Patch Changes
+
+- [#5322](https://github.com/ianstormtaylor/slate/pull/5322) [`836f6600`](https://github.com/ianstormtaylor/slate/commit/836f660054c6fd4ced793cfa28349543b8db9890) Thanks [@edhager](https://github.com/edhager)! - Add checks to Editable selection change handler to avoid errors
+
+## 0.91.6
+
+### Patch Changes
+
+- [#5315](https://github.com/ianstormtaylor/slate/pull/5315) [`5784a38b`](https://github.com/ianstormtaylor/slate/commit/5784a38b6bd0f7de50efc890a4d6ceb8fafe191b) Thanks [@clauderic](https://github.com/clauderic)! - The `RestoreDOM` manager that is used Android no longer restores the DOM to its previous state for text mutations. This allows the editor state to be reconciled during a composition without interrupting the composition, as programatically updating the `textContent` of a text node ends the current composition.
+
+* [#5315](https://github.com/ianstormtaylor/slate/pull/5315) [`5784a38b`](https://github.com/ianstormtaylor/slate/commit/5784a38b6bd0f7de50efc890a4d6ceb8fafe191b) Thanks [@clauderic](https://github.com/clauderic)! - Fixed consumer defined `onInput` event handler not being invoked when passed to the `<Editable>` component.
+
+## 0.91.5
+
+### Patch Changes
+
+- [#5313](https://github.com/ianstormtaylor/slate/pull/5313) [`3bf568ed`](https://github.com/ianstormtaylor/slate/commit/3bf568ede2a1df91ff4f88402e0cdd848848f2fb) Thanks [@edhager](https://github.com/edhager)! - Some code clean-up in Editable.
+
+* [#5306](https://github.com/ianstormtaylor/slate/pull/5306) [`213edbbf`](https://github.com/ianstormtaylor/slate/commit/213edbbf3abc407532aeda72e40d6f01d368c33c) Thanks [@clauderic](https://github.com/clauderic)! - Use memoization to avoid unnecessary `textContent` updates in `<TextString>` component.
+
 ## 0.91.4
 
 ### Patch Changes

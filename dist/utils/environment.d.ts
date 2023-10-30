@@ -7,6 +7,7 @@ export declare const IS_SAFARI: boolean;
 export declare const IS_EDGE_LEGACY: boolean;
 export declare const IS_CHROME: boolean;
 export declare const IS_CHROME_LEGACY: boolean;
+export declare const IS_ANDROID_CHROME_LEGACY: boolean;
 export declare const IS_FIREFOX_LEGACY: boolean;
 export declare const IS_UC_MOBILE: boolean;
 export declare const IS_WECHATBROWSER: boolean;

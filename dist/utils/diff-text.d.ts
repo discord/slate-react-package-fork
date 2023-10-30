@@ -14,6 +14,7 @@ export declare type TextDiff = {
  * recover the pending selection.
  */
 export declare function verifyDiffState(editor: Editor, textDiff: TextDiff): boolean;
+export declare function applyStringDiff(text: string, ...diffs: StringDiff[]): string;
 /**
  * Remove redundant changes from the diff so that it spans the minimal possible range
  */

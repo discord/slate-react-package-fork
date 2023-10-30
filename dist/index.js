@@ -610,7 +610,8 @@ var IS_EDGE_LEGACY = typeof navigator !== 'undefined' && /Edge?\/(?:[0-6][0-9]|[
 var IS_CHROME = typeof navigator !== 'undefined' && /Chrome/i.test(navigator.userAgent); // Native `beforeInput` events don't work well with react on Chrome 75
 // and older, Chrome 76+ can use `beforeInput` though.
 
-var IS_CHROME_LEGACY = typeof navigator !== 'undefined' && /Chrome?\/(?:[0-7][0-5]|[0-6][0-9])(?:\.)/i.test(navigator.userAgent); // Firefox did not support `beforeInput` until `v87`.
+var IS_CHROME_LEGACY = typeof navigator !== 'undefined' && /Chrome?\/(?:[0-7][0-5]|[0-6][0-9])(?:\.)/i.test(navigator.userAgent);
+var IS_ANDROID_CHROME_LEGACY = IS_ANDROID && typeof navigator !== 'undefined' && /Chrome?\/(?:[0-5]?\d)(?:\.)/i.test(navigator.userAgent); // Firefox did not support `beforeInput` until `v87`.
 
 var IS_FIREFOX_LEGACY = typeof navigator !== 'undefined' && /^(?!.*Seamonkey)(?=.*Firefox\/(?:[0-7][0-9]|[0-8][0-6])(?:\.)).*/i.test(navigator.userAgent); // UC mobile browser
 
@@ -622,7 +623,7 @@ var IS_WECHATBROWSER = typeof navigator !== 'undefined' && /.*Wechat/.test(navig
 var CAN_USE_DOM = !!(typeof window !== 'undefined' && typeof window.document !== 'undefined' && typeof window.document.createElement !== 'undefined'); // COMPAT: Firefox/Edge Legacy don't support the `beforeinput` event
 // Chrome Legacy doesn't support `beforeinput` correctly
 
-var HAS_BEFORE_INPUT_SUPPORT = !IS_CHROME_LEGACY && !IS_EDGE_LEGACY && // globalThis is undefined in older browsers
+var HAS_BEFORE_INPUT_SUPPORT = (!IS_CHROME_LEGACY || !IS_ANDROID_CHROME_LEGACY) && !IS_EDGE_LEGACY && // globalThis is undefined in older browsers
 typeof globalThis !== 'undefined' && globalThis.InputEvent && // @ts-ignore The `getTargetRanges` property isn't recognized.
 typeof globalThis.InputEvent.prototype.getTargetRanges === 'function';
 
@@ -1213,6 +1214,16 @@ var ReactEditor = {
 
     if (anchorNode == null || focusNode == null || anchorOffset == null || focusOffset == null) {
       throw new Error("Cannot resolve a Slate range from DOM range: ".concat(domRange));
+    } // COMPAT: Triple-clicking a word in chrome will sometimes place the focus
+    // inside a `contenteditable="false"` DOM node following the word, which
+    // will cause `toSlatePoint` to throw an error. (2023/03/07)
+
+
+    if ('getAttribute' in focusNode && focusNode.getAttribute('contenteditable') === 'false') {
+      var _anchorNode$textConte;
+
+      focusNode = anchorNode;
+      focusOffset = ((_anchorNode$textConte = anchorNode.textContent) === null || _anchorNode$textConte === void 0 ? void 0 : _anchorNode$textConte.length) || 0;
     }
 
     var anchor = ReactEditor.toSlatePoint(editor, [anchorNode, anchorOffset], {
@@ -1488,7 +1499,11 @@ var TextString = function TextString(props) {
 
   var getTextContent = function getTextContent() {
     return "".concat(text !== null && text !== void 0 ? text : '').concat(isTrailing ? '\n' : '');
-  }; // This is the actual text rendering boundary where we interface with the DOM
+  };
+
+  var _useState = React.useState(getTextContent),
+      _useState2 = _slicedToArray(_useState, 1),
+      initialText = _useState2[0]; // This is the actual text rendering boundary where we interface with the DOM
   // The text is not rendered as part of the virtual DOM, as since we handle basic character insertions natively,
   // updating the DOM is not a one way dataflow anymore. What we need here is not reconciliation and diffing
   // with previous version of the virtual DOM, but rather diffing with the actual DOM element, and replace the DOM <span> content
@@ -1507,26 +1522,23 @@ var TextString = function TextString(props) {
     } // intentionally not specifying dependencies, so that this effect runs on every render
     // as this effectively replaces "specifying the text in the virtual DOM under the <span> below" on each render
 
-  }); // Render text content immediately if it's the first-time render
-  // Ensure that text content is rendered on server-side rendering
+  }); // We intentionally render a memoized <span> that only receives the initial text content when the component is mounted.
+  // We defer to the layout effect above to update the `textContent` of the span element when needed.
 
-  if (!ref.current) {
-    return /*#__PURE__*/React__default['default'].createElement("span", {
-      "data-slate-string": true,
-      ref: ref
-    }, getTextContent());
-  } // the span is intentionally same on every render in virtual DOM, actual rendering happens in the layout effect above
+  return /*#__PURE__*/React__default['default'].createElement(MemoizedText$1, {
+    ref: ref
+  }, initialText);
+};
 
-
+var MemoizedText$1 = /*#__PURE__*/React.memo( /*#__PURE__*/React.forwardRef(function (props, ref) {
   return /*#__PURE__*/React__default['default'].createElement("span", {
     "data-slate-string": true,
     ref: ref
-  });
-};
+  }, props.children);
+}));
 /**
  * Leaf strings without text, render as zero-width strings.
  */
-
 
 var ZeroWidthString = function ZeroWidthString(props) {
   var _props$length = props.length,
@@ -2262,21 +2274,24 @@ var createRestoreDomManager = function createRestoreDomManager(editor, receivedU
   };
 
   function restoreDOM() {
-    bufferedMutations.reverse().forEach(function (mutation) {
-      if (mutation.type === 'characterData') {
-        mutation.target.textContent = mutation.oldValue;
-        return;
-      }
+    if (bufferedMutations.length > 0) {
+      bufferedMutations.reverse().forEach(function (mutation) {
+        if (mutation.type === 'characterData') {
+          // We don't want to restore the DOM for characterData mutations
+          // because this interrupts the composition.
+          return;
+        }
 
-      mutation.removedNodes.forEach(function (node) {
-        mutation.target.insertBefore(node, mutation.nextSibling);
-      });
-      mutation.addedNodes.forEach(function (node) {
-        mutation.target.removeChild(node);
-      });
-    }); // Clear buffered mutations to ensure we don't undo them twice
+        mutation.removedNodes.forEach(function (node) {
+          mutation.target.insertBefore(node, mutation.nextSibling);
+        });
+        mutation.addedNodes.forEach(function (node) {
+          mutation.target.removeChild(node);
+        });
+      }); // Clear buffered mutations to ensure we don't undo them twice
 
-    clear();
+      clear();
+    }
   }
 
   return {
@@ -2416,7 +2431,6 @@ function verifyDiffState(editor, textDiff) {
   var nextNode = slate.Node.get(editor, nextPath);
   return slate.Text.isText(nextNode) && nextNode.text.startsWith(diff.text);
 }
-
 function applyStringDiff(text) {
   for (var _len = arguments.length, diffs = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
     diffs[_key - 1] = arguments[_key];
@@ -2820,7 +2834,12 @@ var RESOLVE_DELAY = 25; // Time with no user interaction before the current user
 
 var FLUSH_DELAY = 200; // Replace with `const debug = console.log` to debug
 
-var debug = function debug() {};
+var debug = function debug() {}; // Type guard to check if a value is a DataTransfer
+
+
+var isDataTransfer = function isDataTransfer(value) {
+  return (value === null || value === void 0 ? void 0 : value.constructor.name) === 'DataTransfer';
+};
 
 function createAndroidInputManager(_ref) {
   var editor = _ref.editor,
@@ -2873,8 +2892,6 @@ function createAndroidInputManager(_ref) {
   };
 
   var flush = function flush() {
-    var _EDITOR_TO_PENDING_DI;
-
     if (flushTimeoutId) {
       clearTimeout(flushTimeoutId);
       flushTimeoutId = null;
@@ -2906,11 +2923,11 @@ function createAndroidInputManager(_ref) {
     });
     EDITOR_TO_USER_MARKS.set(editor, editor.marks);
     debug('flush', EDITOR_TO_PENDING_ACTION.get(editor), EDITOR_TO_PENDING_DIFFS.get(editor));
-    var scheduleSelectionChange = !!((_EDITOR_TO_PENDING_DI = EDITOR_TO_PENDING_DIFFS.get(editor)) !== null && _EDITOR_TO_PENDING_DI !== void 0 && _EDITOR_TO_PENDING_DI.length);
+    var scheduleSelectionChange = hasPendingDiffs();
     var diff;
 
-    while (diff = (_EDITOR_TO_PENDING_DI2 = EDITOR_TO_PENDING_DIFFS.get(editor)) === null || _EDITOR_TO_PENDING_DI2 === void 0 ? void 0 : _EDITOR_TO_PENDING_DI2[0]) {
-      var _EDITOR_TO_PENDING_DI2, _EDITOR_TO_PENDING_DI3;
+    while (diff = (_EDITOR_TO_PENDING_DI = EDITOR_TO_PENDING_DIFFS.get(editor)) === null || _EDITOR_TO_PENDING_DI === void 0 ? void 0 : _EDITOR_TO_PENDING_DI[0]) {
+      var _EDITOR_TO_PENDING_DI, _EDITOR_TO_PENDING_DI2;
 
       var pendingMarks = EDITOR_TO_PENDING_INSERTION_MARKS.get(editor);
 
@@ -2937,7 +2954,7 @@ function createAndroidInputManager(_ref) {
       // pending ranges.
 
 
-      EDITOR_TO_PENDING_DIFFS.set(editor, (_EDITOR_TO_PENDING_DI3 = EDITOR_TO_PENDING_DIFFS.get(editor)) === null || _EDITOR_TO_PENDING_DI3 === void 0 ? void 0 : _EDITOR_TO_PENDING_DI3.filter(function (_ref2) {
+      EDITOR_TO_PENDING_DIFFS.set(editor, (_EDITOR_TO_PENDING_DI2 = EDITOR_TO_PENDING_DIFFS.get(editor)) === null || _EDITOR_TO_PENDING_DI2 === void 0 ? void 0 : _EDITOR_TO_PENDING_DI2.filter(function (_ref2) {
         var id = _ref2.id;
         return id !== diff.id;
       }));
@@ -3023,8 +3040,8 @@ function createAndroidInputManager(_ref) {
   };
 
   var storeDiff = function storeDiff(path, diff) {
-    var _EDITOR_TO_PENDING_DI4;
-    var pendingDiffs = (_EDITOR_TO_PENDING_DI4 = EDITOR_TO_PENDING_DIFFS.get(editor)) !== null && _EDITOR_TO_PENDING_DI4 !== void 0 ? _EDITOR_TO_PENDING_DI4 : [];
+    var _EDITOR_TO_PENDING_DI3;
+    var pendingDiffs = (_EDITOR_TO_PENDING_DI3 = EDITOR_TO_PENDING_DIFFS.get(editor)) !== null && _EDITOR_TO_PENDING_DI3 !== void 0 ? _EDITOR_TO_PENDING_DI3 : [];
     EDITOR_TO_PENDING_DIFFS.set(editor, pendingDiffs);
     var target = slate.Node.leaf(editor, path);
     var idx = pendingDiffs.findIndex(function (change) {
@@ -3126,59 +3143,93 @@ function createAndroidInputManager(_ref) {
 
     if (!targetRange) {
       return;
-    }
+    } // By default, the input manager tries to store text diffs so that we can
+    // defer flushing them at a later point in time. We don't want to flush
+    // for every input event as this can be expensive. However, there are some
+    // scenarios where we cannot safely store the text diff and must instead
+    // schedule an action to let Slate normalize the editor state.
 
-    if (slate.Range.isExpanded(targetRange) && type.startsWith('delete')) {
-      var _Range$edges = slate.Range.edges(targetRange),
-          _Range$edges2 = _slicedToArray(_Range$edges, 2),
-          start = _Range$edges2[0],
-          end = _Range$edges2[1];
 
-      var leaf = slate.Node.leaf(editor, start.path);
+    var canStoreDiff = true;
 
-      if (leaf.text.length === start.offset && end.offset === 0) {
-        var next = slate.Editor.next(editor, {
-          at: start.path,
-          match: slate.Text.isText
-        });
+    if (type.startsWith('delete')) {
+      if (slate.Range.isExpanded(targetRange)) {
+        var _Range$edges = slate.Range.edges(targetRange),
+            _Range$edges2 = _slicedToArray(_Range$edges, 2),
+            _start = _Range$edges2[0],
+            _end = _Range$edges2[1];
 
-        if (next && slate.Path.equals(next[1], end.path)) {
-          targetRange = {
-            anchor: end,
-            focus: end
-          };
+        var _leaf = slate.Node.leaf(editor, _start.path);
+
+        if (_leaf.text.length === _start.offset && _end.offset === 0) {
+          var next = slate.Editor.next(editor, {
+            at: _start.path,
+            match: slate.Text.isText
+          });
+
+          if (next && slate.Path.equals(next[1], _end.path)) {
+            targetRange = {
+              anchor: _end,
+              focus: _end
+            };
+          }
         }
-      }
-    }
-
-    if (slate.Range.isExpanded(targetRange) && type.startsWith('delete')) {
-      if (slate.Path.equals(targetRange.anchor.path, targetRange.focus.path)) {
-        var _Range$edges3 = slate.Range.edges(targetRange),
-            _Range$edges4 = _slicedToArray(_Range$edges3, 2),
-            _start = _Range$edges4[0],
-            _end = _Range$edges4[1];
-
-        var point = {
-          path: targetRange.anchor.path,
-          offset: _start.offset
-        };
-        var range = slate.Editor.range(editor, point, point);
-        handleUserSelect(range);
-        return storeDiff(targetRange.anchor.path, {
-          text: '',
-          end: _end.offset,
-          start: _start.offset
-        });
       }
 
       var direction = type.endsWith('Backward') ? 'backward' : 'forward';
-      return scheduleAction(function () {
-        return slate.Editor.deleteFragment(editor, {
-          direction: direction
-        });
-      }, {
-        at: targetRange
+
+      var _Range$edges3 = slate.Range.edges(targetRange),
+          _Range$edges4 = _slicedToArray(_Range$edges3, 2),
+          start = _Range$edges4[0],
+          end = _Range$edges4[1];
+
+      var _Editor$leaf = slate.Editor.leaf(editor, start.path),
+          _Editor$leaf2 = _slicedToArray(_Editor$leaf, 2),
+          leaf = _Editor$leaf2[0],
+          path = _Editor$leaf2[1];
+
+      var diff = {
+        text: '',
+        start: start.offset,
+        end: end.offset
+      };
+      var pendingDiffs = EDITOR_TO_PENDING_DIFFS.get(editor);
+      var relevantPendingDiffs = pendingDiffs === null || pendingDiffs === void 0 ? void 0 : pendingDiffs.find(function (change) {
+        return slate.Path.equals(change.path, path);
       });
+      var diffs = relevantPendingDiffs ? [relevantPendingDiffs.diff, diff] : [diff];
+      var text = applyStringDiff.apply(void 0, [leaf.text].concat(diffs));
+
+      if (text.length === 0) {
+        // Text leaf will be removed, so we need to schedule an
+        // action to remove it so that Slate can normalize instead
+        // of storing as a diff
+        canStoreDiff = false;
+      }
+
+      if (slate.Range.isExpanded(targetRange)) {
+        if (canStoreDiff && slate.Path.equals(targetRange.anchor.path, targetRange.focus.path)) {
+          var point = {
+            path: targetRange.anchor.path,
+            offset: start.offset
+          };
+          var range = slate.Editor.range(editor, point, point);
+          handleUserSelect(range);
+          return storeDiff(targetRange.anchor.path, {
+            text: '',
+            end: end.offset,
+            start: start.offset
+          });
+        }
+
+        return scheduleAction(function () {
+          return slate.Editor.deleteFragment(editor, {
+            direction: direction
+          });
+        }, {
+          at: targetRange
+        });
+      }
     }
 
     switch (type) {
@@ -3199,7 +3250,7 @@ function createAndroidInputManager(_ref) {
           var _targetRange3 = targetRange,
               anchor = _targetRange3.anchor;
 
-          if (slate.Range.isCollapsed(targetRange)) {
+          if (canStoreDiff && slate.Range.isCollapsed(targetRange)) {
             var targetNode = slate.Node.leaf(editor, anchor.path);
 
             if (anchor.offset < targetNode.text.length) {
@@ -3229,7 +3280,7 @@ function createAndroidInputManager(_ref) {
 
           var nativeCollapsed = isDOMSelection(nativeTargetRange) ? nativeTargetRange.isCollapsed : !!((_nativeTargetRange = nativeTargetRange) !== null && _nativeTargetRange !== void 0 && _nativeTargetRange.collapsed);
 
-          if (nativeCollapsed && slate.Range.isCollapsed(targetRange) && _anchor.offset > 0) {
+          if (canStoreDiff && nativeCollapsed && slate.Range.isCollapsed(targetRange) && _anchor.offset > 0) {
             return storeDiff(_anchor.path, {
               text: '',
               start: _anchor.offset - 1,
@@ -3351,7 +3402,7 @@ function createAndroidInputManager(_ref) {
       case 'insertReplacementText':
       case 'insertText':
         {
-          if ((data === null || data === void 0 ? void 0 : data.constructor.name) === 'DataTransfer') {
+          if (isDataTransfer(data)) {
             return scheduleAction(function () {
               return ReactEditor.insertData(editor, data);
             }, {
@@ -3359,19 +3410,39 @@ function createAndroidInputManager(_ref) {
             });
           }
 
-          if (typeof data === 'string' && data.includes('\n')) {
-            return scheduleAction(function () {
-              return slate.Editor.insertSoftBreak(editor);
-            }, {
-              at: slate.Range.end(targetRange)
-            });
-          }
-
-          var text = data !== null && data !== void 0 ? data : ''; // COMPAT: If we are writing inside a placeholder, the ime inserts the text inside
+          var _text = data !== null && data !== void 0 ? data : ''; // COMPAT: If we are writing inside a placeholder, the ime inserts the text inside
           // the placeholder itself and thus includes the zero-width space inside edit events.
 
+
           if (EDITOR_TO_PENDING_INSERTION_MARKS.get(editor)) {
-            text = text.replace("\uFEFF", '');
+            _text = _text.replace("\uFEFF", '');
+          } // Pastes from the Android clipboard will generate `insertText` events.
+          // If the copied text contains any newlines, Android will append an
+          // extra newline to the end of the copied text.
+
+
+          if (type === 'insertText' && /.*\n.*\n$/.test(_text)) {
+            _text = _text.slice(0, -1);
+          } // If the text includes a newline, split it at newlines and paste each component
+          // string, with soft breaks in between each.
+
+
+          if (_text.includes('\n')) {
+            return scheduleAction(function () {
+              var parts = _text.split('\n');
+
+              parts.forEach(function (line, i) {
+                if (line) {
+                  slate.Editor.insertText(editor, line);
+                }
+
+                if (i !== parts.length - 1) {
+                  slate.Editor.insertSoftBreak(editor);
+                }
+              });
+            }, {
+              at: targetRange
+            });
           }
 
           if (slate.Path.equals(targetRange.anchor.path, targetRange.focus.path)) {
@@ -3380,10 +3451,10 @@ function createAndroidInputManager(_ref) {
                 _start2 = _Range$edges6[0],
                 _end2 = _Range$edges6[1];
 
-            var diff = {
+            var _diff = {
               start: _start2.offset,
               end: _end2.offset,
-              text: text
+              text: _text
             }; // COMPAT: Swiftkey has a weird bug where the target range of the 2nd word
             // inserted after a mark placeholder is inserted with an anchor offset off by 1.
             // So writing 'some text' will result in 'some ttext'. Luckily all 'normal' insert
@@ -3391,12 +3462,13 @@ function createAndroidInputManager(_ref) {
             // isn't, so we can adjust the target range start offset if we are confident this is the
             // swiftkey insert causing the issue.
 
-            if (text && insertPositionHint && type === 'insertCompositionText') {
+            if (_text && insertPositionHint && type === 'insertCompositionText') {
               var hintPosition = insertPositionHint.start + insertPositionHint.text.search(/\S|$/);
-              var diffPosition = diff.start + diff.text.search(/\S|$/);
 
-              if (diffPosition === hintPosition + 1 && diff.end === insertPositionHint.start + insertPositionHint.text.length) {
-                diff.start -= 1;
+              var diffPosition = _diff.start + _diff.text.search(/\S|$/);
+
+              if (diffPosition === hintPosition + 1 && _diff.end === insertPositionHint.start + insertPositionHint.text.length) {
+                _diff.start -= 1;
                 insertPositionHint = null;
                 scheduleFlush();
               } else {
@@ -3404,10 +3476,10 @@ function createAndroidInputManager(_ref) {
               }
             } else if (type === 'insertText') {
               if (insertPositionHint === null) {
-                insertPositionHint = diff;
+                insertPositionHint = _diff;
               } else if (insertPositionHint && slate.Range.isCollapsed(targetRange) && insertPositionHint.end + insertPositionHint.text.length === _start2.offset) {
                 insertPositionHint = _objectSpread$3(_objectSpread$3({}, insertPositionHint), {}, {
-                  text: insertPositionHint.text + text
+                  text: insertPositionHint.text + _text
                 });
               } else {
                 insertPositionHint = false;
@@ -3416,12 +3488,14 @@ function createAndroidInputManager(_ref) {
               insertPositionHint = false;
             }
 
-            storeDiff(_start2.path, diff);
-            return;
+            if (canStoreDiff) {
+              storeDiff(_start2.path, _diff);
+              return;
+            }
           }
 
           return scheduleAction(function () {
-            return slate.Editor.insertText(editor, text);
+            return slate.Editor.insertText(editor, _text);
           }, {
             at: targetRange
           });
@@ -3434,9 +3508,9 @@ function createAndroidInputManager(_ref) {
   };
 
   var hasPendingDiffs = function hasPendingDiffs() {
-    var _EDITOR_TO_PENDING_DI5;
+    var _EDITOR_TO_PENDING_DI4;
 
-    return !!((_EDITOR_TO_PENDING_DI5 = EDITOR_TO_PENDING_DIFFS.get(editor)) !== null && _EDITOR_TO_PENDING_DI5 !== void 0 && _EDITOR_TO_PENDING_DI5.length);
+    return !!((_EDITOR_TO_PENDING_DI4 = EDITOR_TO_PENDING_DIFFS.get(editor)) !== null && _EDITOR_TO_PENDING_DI4 !== void 0 && _EDITOR_TO_PENDING_DI4.length);
   };
 
   var hasPendingChanges = function hasPendingChanges() {
@@ -3468,7 +3542,7 @@ function createAndroidInputManager(_ref) {
       insertPositionHint = false;
     }
 
-    if (pathChanged || !hasPendingDiffs()) {
+    if (pathChanged || hasPendingDiffs()) {
       flushTimeoutId = setTimeout(flush, FLUSH_DELAY);
     }
   };
@@ -3655,6 +3729,10 @@ var Children = function Children(props) {
 var Editable = function Editable(props) {
   var _EDITOR_TO_PLACEHOLDE, _EDITOR_TO_PLACEHOLDE2;
 
+  var defaultRenderPlaceholder = React.useCallback(function (props) {
+    return /*#__PURE__*/React__default['default'].createElement(DefaultPlaceholder, Object.assign({}, props));
+  }, []);
+
   var autoFocus = props.autoFocus,
       _props$decorate = props.decorate,
       decorate = _props$decorate === void 0 ? defaultDecorate : _props$decorate,
@@ -3665,9 +3743,7 @@ var Editable = function Editable(props) {
       renderElement = props.renderElement,
       renderLeaf = props.renderLeaf,
       _props$renderPlacehol = props.renderPlaceholder,
-      renderPlaceholder = _props$renderPlacehol === void 0 ? function (props) {
-    return /*#__PURE__*/React__default['default'].createElement(DefaultPlaceholder, Object.assign({}, props));
-  } : _props$renderPlacehol,
+      renderPlaceholder = _props$renderPlacehol === void 0 ? defaultRenderPlaceholder : _props$renderPlacehol,
       _props$scrollSelectio = props.scrollSelectionIntoView,
       scrollSelectionIntoView = _props$scrollSelectio === void 0 ? defaultScrollSelectionIntoView : _props$scrollSelectio,
       _props$style = props.style,
@@ -3714,18 +3790,16 @@ var Editable = function Editable(props) {
     return function () {
       if (state == null) {
         return;
-      } // Avoid leaking DOM nodes when this component is unmounted.
-
-
-      if (state.latestElement != null) {
-        state.latestElement.remove();
       }
 
-      if (state.latestElement != null) {
-        state.latestElement = null;
+      if (state.latestElement == null) {
+        return;
       }
+
+      state.latestElement.remove();
+      state.latestElement = null;
     };
-  }, []); // The autoFocus TextareaHTMLAttribute doesn't do anything on a div, so it
+  }); // The autoFocus TextareaHTMLAttribute doesn't do anything on a div, so it
   // needs to be manually focused.
 
   React.useEffect(function () {
@@ -4209,34 +4283,28 @@ var Editable = function Editable(props) {
   }, [readOnly, propsOnDOMBeforeInput]);
   var callbackRef = React.useCallback(function (node) {
     if (node == null) {
+      onDOMSelectionChange.cancel();
+      scheduleOnDOMSelectionChange.cancel();
       EDITOR_TO_ELEMENT["delete"](editor);
       NODE_TO_ELEMENT["delete"](editor);
 
-      if (HAS_BEFORE_INPUT_SUPPORT) {
-        // @ts-ignore The `beforeinput` event isn't recognized.
-        ref.current.removeEventListener('beforeinput', onDOMBeforeInput);
-      }
-    }
-
-    ref.current = node;
-  }, [ref, onDOMBeforeInput]); // Attach a native DOM event handler for `beforeinput` events, because React's
-  // built-in `onBeforeInput` is actually a leaky polyfill that doesn't expose
-  // real `beforeinput` events sadly... (2019/11/04)
-  // https://github.com/facebook/react/issues/11211
-
-  useIsomorphicLayoutEffect(function () {
-    if (ref.current && HAS_BEFORE_INPUT_SUPPORT) {
-      // @ts-ignore The `beforeinput` event isn't recognized.
-      ref.current.addEventListener('beforeinput', onDOMBeforeInput);
-    }
-
-    return function () {
       if (ref.current && HAS_BEFORE_INPUT_SUPPORT) {
         // @ts-ignore The `beforeinput` event isn't recognized.
         ref.current.removeEventListener('beforeinput', onDOMBeforeInput);
       }
-    };
-  }, [onDOMBeforeInput]); // Attach a native DOM event handler for `selectionchange`, because React's
+    } else {
+      // Attach a native DOM event handler for `beforeinput` events, because React's
+      // built-in `onBeforeInput` is actually a leaky polyfill that doesn't expose
+      // real `beforeinput` events sadly... (2019/11/04)
+      // https://github.com/facebook/react/issues/11211
+      if (HAS_BEFORE_INPUT_SUPPORT) {
+        // @ts-ignore The `beforeinput` event isn't recognized.
+        node.addEventListener('beforeinput', onDOMBeforeInput);
+      }
+    }
+
+    ref.current = node;
+  }, [ref, onDOMBeforeInput, onDOMSelectionChange, scheduleOnDOMSelectionChange]); // Attach a native DOM event handler for `selectionchange`, because React's
   // built-in `onSelect` handler doesn't fire for all selection changes. It's a
   // leaky polyfill that only fires on keypresses or clicks. Instead, we want to
   // fire for any change to the selection inside the editor. (2019/11/04)
@@ -4364,6 +4432,10 @@ var Editable = function Editable(props) {
       }
     }, [readOnly]),
     onInput: React.useCallback(function (event) {
+      if (isEventHandled(event, attributes.onInput)) {
+        return;
+      }
+
       if (androidInputManager) {
         androidInputManager.handleInput();
         return;
@@ -4982,7 +5054,10 @@ var Editable = function Editable(props) {
         // fall back to React's `onPaste` here instead.
         // COMPAT: Firefox, Chrome and Safari don't emit `beforeinput` events
         // when "paste without formatting" is used, so fallback. (2020/02/20)
-        if (!HAS_BEFORE_INPUT_SUPPORT || isPlainTextOnlyPaste(event.nativeEvent)) {
+        // COMPAT: Safari InputEvents generated by pasting won't include
+        // application/x-slate-fragment items, so use the
+        // ClipboardEvent here. (2023/03/15)
+        if (!HAS_BEFORE_INPUT_SUPPORT || isPlainTextOnlyPaste(event.nativeEvent) || IS_SAFARI) {
           event.preventDefault();
           ReactEditor.insertData(editor, event.clipboardData);
         }
