@@ -1,64 +1,61 @@
 {
   "name": "slate-react",
-  "description": "A set of React components for building completely customizable rich-text editors.",
-  "version": "0.22.10",
+  "description": "Tools for building completely customizable richtext editors with React.",
+  "version": "0.91.11",
   "license": "MIT",
   "repository": "git://github.com/ianstormtaylor/slate.git",
-  "main": "lib/slate-react.js",
-  "module": "lib/slate-react.es.js",
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
   "umd": "dist/slate-react.js",
   "umdMin": "dist/slate-react.min.js",
+  "sideEffects": false,
   "files": [
-    "dist/",
-    "lib/"
+    "dist/"
   ],
   "dependencies": {
-    "debug": "^3.1.0",
-    "get-window": "^1.1.1",
-    "is-window": "^1.0.2",
-    "lodash": "^4.1.1",
-    "memoize-one": "^4.0.0",
-    "prop-types": "^15.5.8",
-    "react-immutable-proptypes": "^2.1.0",
-    "selection-is-backward": "^1.0.0",
-    "slate-base64-serializer": "^0.2.112",
-    "slate-dev-environment": "^0.2.2",
-    "slate-hotkeys": "^0.2.9",
-    "slate-plain-serializer": "^0.7.11",
-    "slate-prop-types": "^0.5.42",
-    "slate-react-placeholder": "^0.2.9",
-    "tiny-invariant": "^1.0.1",
-    "tiny-warning": "^0.0.3"
-  },
-  "peerDependencies": {
-    "immutable": ">=3.8.1 || >4.0.0-rc",
-    "react": ">=16.6.0",
-    "react-dom": ">=16.6.0",
-    "slate": ">=0.47.0"
+    "@juggle/resize-observer": "^3.4.0",
+    "@types/is-hotkey": "^0.1.1",
+    "@types/lodash": "^4.14.149",
+    "direction": "^1.0.3",
+    "is-hotkey": "^0.1.6",
+    "is-plain-object": "^5.0.0",
+    "lodash": "^4.17.4",
+    "scroll-into-view-if-needed": "^2.2.20",
+    "tiny-invariant": "1.0.6"
   },
   "devDependencies": {
-    "immutable": "^3.8.1",
-    "mocha": "^2.5.3",
-    "react-test-renderer": "^16.6.3",
-    "slate": "^0.47.9",
-    "slate-hyperscript": "^0.13.9"
+    "@babel/runtime": "^7.7.4",
+    "@types/jest": "^27.4.1",
+    "@types/jsdom": "^16.2.14",
+    "@types/react": "^16.9.13",
+    "@types/react-dom": "^16.9.4",
+    "@types/react-test-renderer": "^16.8.0",
+    "@types/resize-observer-browser": "^0.1.7",
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0",
+    "react-test-renderer": ">=16.8.0",
+    "slate": "^0.91.4",
+    "slate-hyperscript": "^0.81.3",
+    "source-map-loader": "^4.0.0"
   },
-  "scripts": {
-    "clean": "rm -rf ./dist ./lib ./node_modules"
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0",
+    "slate": ">=0.65.3"
   },
   "umdGlobals": {
-    "immutable": "Immutable",
     "react": "React",
     "slate": "Slate"
   },
   "keywords": [
     "canvas",
     "contenteditable",
-    "doc",
     "docs",
     "document",
     "edit",
     "editor",
+    "editable",
     "html",
     "immutable",
     "markdown",
@@ -66,7 +63,7 @@
     "paper",
     "react",
     "rich",
-    "rich-text",
+    "richtext",
     "richtext",
     "slate",
     "text",
